@@ -1,0 +1,6 @@
+{
+  "license": "CC0-1.0",
+  "archive": "ATools-Fixed-26.10-Fabric-1.21.4.jar",
+  "sha256": "9d464eca3b4a51182b4fd5c400e6f14636c806c5e67c3d025266b9217be407d1",
+  "port": "Only package/class names and the unused IMinecraft marker interface changed. Method bodies are preserved."
+}

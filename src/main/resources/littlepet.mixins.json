@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "com.spidiboost.littlepet.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "KeyboardMixin",
+    "MouseMixin",
+    "ControlsEntryMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

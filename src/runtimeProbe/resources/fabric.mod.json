@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "zzlittlepettest",
+  "version": "1",
+  "name": "LittlePet runtime tests",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.spidiboost.verification.RuntimeProbe",
+      "com.spidiboost.verification.CatalogRuntimeProbe",
+      "com.spidiboost.verification.CompatRuntimeProbe"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.10",
+    "minecraft": "1.21.4",
+    "spidiboostlittlepet": "*",
+    "fabric-api": "*"
+  }
+}

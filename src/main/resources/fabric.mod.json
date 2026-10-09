@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "spidiboostlittlepet",
+  "version": "${version}",
+  "name": "spidiboost.LittlePet",
+  "description": "Независимые питомцы, скины и лица. Правый Shift — настройки.",
+  "authors": [
+    "SpidiBoost"
+  ],
+  "license": "LGPL-3.0-only",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.spidiboost.littlepet.LittlePetClient",
+      "com.spidiboost.updates.SharedBootstrap"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.10",
+    "minecraft": "1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "custom": {
+    "littlepet:author": "SpidiBoost",
+    "littlepet:sourceArchive": "LittlePet-Standalone-SpidiBoost-${version}-sources.zip"
+  },
+  "icon": "assets/spidiboostlittlepet/icon.png",
+  "mixins": [
+    "littlepet.mixins.json"
+  ],
+  "contact": {
+    "homepage": "https://github.com/SpidiBoostMods/LittlePet",
+    "sources": "https://github.com/SpidiBoostMods/LittlePet",
+    "issues": "https://github.com/SpidiBoostMods/LittlePet/issues"
+  }
+}

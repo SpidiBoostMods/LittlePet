@@ -1,0 +1,189 @@
+plugins {
+    id 'fabric-loom' version '1.9.2'
+}
+
+version = project.mod_version
+group = 'com.spidiboost.littlepet'
+
+base {
+    archivesName = 'LittlePet-1.21.4'
+}
+
+repositories {
+    maven { url = 'https://maven.fabricmc.net/' }
+    maven { url = 'https://libraries.minecraft.net/' }
+    mavenCentral()
+}
+
+dependencies {
+    minecraft 'com.mojang:minecraft:1.21.4'
+    mappings 'net.fabricmc:yarn:1.21.4+build.8:v2'
+    modImplementation 'net.fabricmc:fabric-loader:0.16.10'
+    modImplementation 'net.fabricmc.fabric-api:fabric-api:0.119.4+1.21.4'
+}
+
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+    options.debug = false
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching(['fabric.mod.json','SpidiBoost.txt','THIRD-PARTY-NOTICES.md']) {
+        expand 'version': project.version
+    }
+}
+
+tasks.named('jar') {
+    manifest {
+        attributes('Implementation-Title': 'spidiboost.LittlePet', 'Implementation-Vendor': 'SpidiBoost', 'Built-By': 'SpidiBoost', 'Implementation-Version': project.version, 'LittlePet-Author': 'SpidiBoost')
+    }
+}
+
+sourceSets {
+    obfuscator { java.srcDir 'src/obfuscator/java' }
+    protectionRuntime { java.srcDir 'src/protectionRuntime/java' }
+}
+
+dependencies {
+    obfuscatorImplementation 'org.ow2.asm:asm:9.7.1'
+    obfuscatorImplementation 'org.ow2.asm:asm-tree:9.7.1'
+    obfuscatorImplementation 'org.ow2.asm:asm-commons:9.7.1'
+    obfuscatorImplementation 'org.ow2.asm:asm-analysis:9.7.1'
+    obfuscatorImplementation('com.google.code.gson:gson:2.11.0') { transitive = false }
+}
+
+def protectionDir = layout.buildDirectory.dir('protection')
+def protectionSeed = tasks.register('protectionSeed') {
+    outputs.file(protectionDir.map { it.file('seed.txt') })
+    doLast {
+        def seed = protectionDir.get().file('seed.txt').asFile
+        seed.parentFile.mkdirs()
+        if (!seed.exists()) seed.text = Long.toUnsignedString(new java.security.SecureRandom().nextLong(), 16)
+    }
+}
+
+def protectionClasspath = tasks.register('protectionClasspath') {
+    dependsOn tasks.named('classes')
+    outputs.files(protectionDir.map { it.file('classpath.txt') }, protectionDir.map { it.file('obfuscator-classpath.txt') })
+    doLast {
+        def file = protectionDir.get().file('classpath.txt').asFile
+        file.parentFile.mkdirs()
+        def paths = configurations.runtimeClasspath.files.collect { it.absolutePath }
+        paths += configurations.compileClasspath.files.collect { it.absolutePath }
+        paths += loom.getMinecraftJars(net.fabricmc.loom.api.mappings.layered.MappingsNamespace.INTERMEDIARY).collect { it.toAbsolutePath().toString() }
+        file.text = paths.unique().join('\n') + '\n'
+        protectionDir.get().file('obfuscator-classpath.txt').asFile.text = sourceSets.obfuscator.runtimeClasspath.asPath
+    }
+}
+
+def registerProtection = { String taskName, String sourceTask, String outputName, String mapName ->
+    tasks.register(taskName, JavaExec) {
+        dependsOn tasks.named(sourceTask), tasks.named('obfuscatorClasses'), tasks.named('protectionRuntimeClasses'), protectionSeed, protectionClasspath
+        classpath = sourceSets.obfuscator.runtimeClasspath
+        mainClass = 'com.spidiboost.build.PetObfuscator'
+        systemProperty 'littlepet.root', 'com/spidiboost/littlepet/'
+        inputs.file(tasks.named(sourceTask).flatMap { it.archiveFile })
+        inputs.files(sourceSets.obfuscator.output, sourceSets.protectionRuntime.output)
+        inputs.file(protectionDir.map { it.file('seed.txt') })
+        outputs.files(layout.buildDirectory.file(outputName), protectionDir.map { it.file(mapName) })
+        doFirst {
+            args = [tasks.named(sourceTask).get().archiveFile.get().asFile.absolutePath,
+                    layout.buildDirectory.file(outputName).get().asFile.absolutePath,
+                    protectionDir.get().file(mapName).asFile.absolutePath,
+                    layout.buildDirectory.file('classes/java/protectionRuntime/com/spidiboost/protection/StringVault.class').get().asFile.absolutePath,
+                    protectionDir.get().file('classpath.txt').asFile.absolutePath,
+                    protectionDir.get().file('seed.txt').asFile.text.trim()]
+        }
+    }
+}
+
+def protectedRelease = registerProtection('protectRelease', 'remapJar', "libs/LittlePet-1.21.4-${version}.jar", 'release-mapping.json')
+registerProtection('protectNamed', 'jar', "protection/LittlePet-Standalone-SpidiBoost-${version}-named.jar", 'named-mapping.json')
+
+tasks.register('remapProtectedForChecks', net.fabricmc.loom.task.RemapJarTask) {
+    dependsOn protectedRelease
+    inputFile = layout.buildDirectory.file("libs/LittlePet-1.21.4-${version}.jar")
+    archiveFileName = "LittlePet-Standalone-SpidiBoost-${version}-production-named.jar"
+    destinationDirectory = protectionDir
+    sourceNamespace = 'intermediary'
+    targetNamespace = 'named'
+    addNestedDependencies = false
+    classpath.setFrom(loom.getMinecraftJarsCollection(net.fabricmc.loom.api.mappings.layered.MappingsNamespace.INTERMEDIARY),
+            configurations.compileClasspath.filter { !it.name.startsWith('minecraft-') && !it.name.contains('ATools-Fixed') })
+}
+
+def sourceBundle = tasks.register('protectionSources', Zip) {
+    archiveFileName = "LittlePet-Standalone-SpidiBoost-${version}-sources.zip"
+    destinationDirectory = layout.buildDirectory.dir('distribution')
+    from('.') {
+        include 'src/**', 'tools/**', 'upstream/**', 'models/**', 'verification/*.java', 'verification/*.py', 'verification/*.md', 'build.gradle', 'settings.gradle', 'README.md', 'gradlew', 'gradlew.bat', 'gradle/wrapper/**'
+        exclude '**/.DS_Store', '**/__pycache__/**', '**/*.pyc'
+        into 'LittlePet-Standalone-SpidiBoost'
+    }
+}
+
+tasks.register('friendBundle', Zip) {
+    dependsOn protectedRelease, sourceBundle
+    archiveFileName = "LittlePet-Standalone-SpidiBoost-${version}-friends.zip"
+    destinationDirectory = layout.buildDirectory.dir('distribution')
+    from(layout.buildDirectory.file("libs/LittlePet-1.21.4-${version}.jar"))
+    from(sourceBundle.flatMap { it.archiveFile })
+    from(layout.buildDirectory.file('resources/main/SpidiBoost.txt')) { rename { 'README.txt' } }
+    from(layout.buildDirectory.file('resources/main/THIRD-PARTY-NOTICES.md'))
+    from('src/main/resources/licenses') { into 'licenses' }
+}
+
+sourceSets {
+    runtimeProbe {
+        java.srcDir 'src/runtimeProbe/java'
+        resources.setSrcDirs(['src/runtimeProbe/resources'])
+        compileClasspath += sourceSets.main.output + configurations.compileClasspath
+        runtimeClasspath += sourceSets.main.output + configurations.runtimeClasspath
+    }
+}
+
+tasks.register('mapRuntimeProbe', JavaExec) {
+    dependsOn 'runtimeProbeClasses', 'protectNamed'
+    inputs.file('build/protection/named-mapping.json')
+    inputs.files(sourceSets.runtimeProbe.output.classesDirs)
+    outputs.dir('build/runtime-probe/mapped')
+    classpath=sourceSets.obfuscator.runtimeClasspath
+    mainClass='com.spidiboost.build.RemapPetProbes'
+    doFirst { args=[file('build/protection/named-mapping.json').absolutePath,file('build/classes/java/runtimeProbe').absolutePath,file('build/runtime-probe/mapped').absolutePath] }
+}
+tasks.register('runtimeProbeNamedJar', Jar) {
+    dependsOn 'mapRuntimeProbe', 'processRuntimeProbeResources'
+    outputs.upToDateWhen { false }
+    archiveFileName='littlepet-runtime-test-named.jar'
+    destinationDirectory=layout.buildDirectory.dir('runtime-probe')
+    from('build/runtime-probe/mapped')
+    from(sourceSets.runtimeProbe.output.resourcesDir)
+}
+tasks.register('runtimeProbeJar', net.fabricmc.loom.task.RemapJarTask) {
+    dependsOn 'runtimeProbeNamedJar', 'remapProtectedForChecks'
+    inputFile=tasks.named('runtimeProbeNamedJar').flatMap { it.archiveFile }
+    archiveFileName='littlepet-runtime-test.jar'
+    destinationDirectory=layout.buildDirectory.dir('runtime-probe')
+    sourceNamespace='named'
+    targetNamespace='intermediary'
+    addNestedDependencies=false
+    classpath.from(configurations.compileClasspath,files("build/protection/LittlePet-Standalone-SpidiBoost-${version}-production-named.jar"))
+}
+
+tasks.named("build") { dependsOn "protectRelease" }
+
+tasks.named("remapJar") { archiveFileName = "LittlePet-1.21.4-${version}-unprotected.jar" }
+
+apply from: 'shared-updater.gradle'
+
+dependencies { testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'; testRuntimeOnly 'org.junit.platform:junit-platform-launcher' }
+test { useJUnitPlatform() }
