@@ -5,9 +5,8 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URI;
-import java.net.http.*;
+import com.spidiboost.updates.HttpTransfer;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.*;
 
 public final class OfficialSkinService {
@@ -15,7 +14,7 @@ public final class OfficialSkinService {
     public record Response(int status,byte[] body) { }
     public interface Transport { Response get(URI uri,int limit) throws Exception; }
     private record Cached(Skin skin,long expires) { }
-    private static final HttpClient HTTP=HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private static final HttpTransfer HTTP=new HttpTransfer(address -> (javax.net.ssl.HttpsURLConnection)address.toURL().openConnection(),5000,10000,15000);
     private static final OfficialSkinService SHARED=new OfficialSkinService(OfficialSkinService::download);
     private final Transport transport;
     private final Map<String,Cached> cache=new LinkedHashMap<>();
@@ -53,14 +52,11 @@ public final class OfficialSkinService {
         cache.put(key,new Cached(result,System.currentTimeMillis()+3600000));return result;
     }
     private static Response download(URI uri,int limit) throws Exception {
-        HttpRequest request=HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(10)).header("User-Agent","LittlePet-SpidiBoost/1.6").GET().build();
-        HttpResponse<InputStream> result=HTTP.send(request,HttpResponse.BodyHandlers.ofInputStream());
-        try(InputStream stream=result.body()) {
-            byte[] bytes=stream.readNBytes(limit+1);
-            if(bytes.length>limit)throw new IOException("Ответ сервиса слишком большой");
-            return new Response(result.statusCode(),bytes);
-        }
+        if (!Set.of("api.mojang.com","sessionserver.mojang.com","textures.minecraft.net").contains(uri.getHost()))throw new IOException("Некорректный адрес сервиса скинов");
+        var result=HTTP.request(uri,null,limit);
+        return new Response(result.status(),result.body());
     }
+
     private static void ensureSuccess(Response response) throws IOException {
         if(response.status()==404 || response.status()==204)throw new IOException("Лицензионный игрок не найден");
         if(response.status()==429)throw new IOException("Mojang: слишком много запросов, попробуйте позже");

@@ -75,7 +75,7 @@ public final class CustomFaceTexture {
         } catch(Exception e) {
             client.execute(() -> {
                 if(token!=generation.get())return;
-                String reason=e instanceof java.net.http.HttpTimeoutException?"Сервис скинов не ответил":e.getMessage();
+                String reason=e instanceof java.net.SocketTimeoutException?"Сервис скинов не ответил":e.getMessage();
                 if(reason==null || reason.isBlank())reason="Не удалось загрузить скин или лицо";
                 imageSetting.status(reason,true);if(skinSetting!=null)skinSetting.status(reason,true);
             });

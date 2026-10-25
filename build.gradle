@@ -187,3 +187,24 @@ apply from: 'shared-updater.gradle'
 
 dependencies { testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'; testRuntimeOnly 'org.junit.platform:junit-platform-launcher' }
 test { useJUnitPlatform() }
+
+if(project.hasProperty('petNetwork')) {
+    loom.mods { spidiboostlittlepet { sourceSet sourceSets.main }; zzlittlepettest { sourceSet sourceSets.runtimeProbe } }
+    loom.runs { verification {
+        client(); source sourceSets.runtimeProbe; runDir 'build/network-client'
+        programArgs '--username','PetNetworkQA'
+        vmArg '-Dlittlepet.qa.network=true'
+        if(System.getProperty('os.name').startsWith('Mac'))vmArg '-XstartOnFirstThread'
+    } }
+    tasks.named('runVerification',JavaExec) {
+        doFirst {
+            def options=file('build/network-client/options.txt');options.parentFile.mkdirs()
+            options.text='onboardAccessibility:false\nlang:ru_ru\nmaxFps:60\nsoundCategory_master:0.0\n'
+            file('build/network-client/network-results.txt').delete()
+        }
+        doLast {
+            def report=file('build/network-client/network-results.txt')
+            if(!report.isFile()||!report.text.startsWith('PASS'))throw new GradleException('Native network check failed')
+        }
+    }
+}

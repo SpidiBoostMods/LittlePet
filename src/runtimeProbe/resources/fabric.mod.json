@@ -8,7 +8,8 @@
     "client": [
       "com.spidiboost.verification.RuntimeProbe",
       "com.spidiboost.verification.CatalogRuntimeProbe",
-      "com.spidiboost.verification.CompatRuntimeProbe"
+      "com.spidiboost.verification.CompatRuntimeProbe",
+      "com.spidiboost.verification.NetworkProbe"
     ]
   },
   "depends": {
